@@ -211,6 +211,20 @@ BULK_IMPORT = NAV + """
 </div></section></main><div class="footer">JOY UNIVERSITY • Bulk Student Import</div>
 """
 
+
+TEACHERS_DASH = NAV + """
+<main class="page"><section class="hero"><h1>Faculty ID Management</h1><p>Faculty records are separate from student records. Create individual staff cards with quick colour themes.</p><div class="stats"><div class="stat"><b>{{total}}</b>Faculty Members</div><div class="stat"><b>{{departments}}</b>Departments</div><div class="stat"><b>{{photos}}</b>Photos Added</div><div class="stat"><b>JU</b>Faculty ID Studio</div></div><div style="display:flex;gap:9px;flex-wrap:wrap;margin-top:16px"><a class="btn" style="background:#fff;color:#0754bd" href="{{url_for('home')}}">Student Management</a><a class="btn" style="background:#fff;color:#0754bd" href="{{url_for('add_teacher')}}">+ Add Faculty</a></div></section>
+<section class="panel"><div class="panelhead"><div><h2 style="margin:0">Faculty Profiles</h2><div style="font-size:12px;color:#71839a;margin-top:4px">Teachers and staff only</div></div><form class="search"><input name="q" value="{{q}}" placeholder="Search name, employee ID, department..."><button class="btn primary">Search</button>{% if q %}<a class="btn" href="{{url_for('teachers')}}">Clear</a>{% endif %}</form></div><div class="tablewrap">{% if records %}<table><thead><tr><th>Faculty Member</th><th>Employee ID</th><th>Designation</th><th>Department</th><th>Actions</th></tr></thead><tbody>{% for t in records %}<tr><td><div class="student"><div class="mini">{% if t.photo %}<img src="{{t.photo}}">{% else %}{{t.name[:1].upper()}}{% endif %}</div><b>{{t.name}}</b></div></td><td>{{t.employee_id}}</td><td>{{t.designation or '-'}}</td><td>{{t.department or '-'}}</td><td><div class="actions"><a class="btn primary" href="{{url_for('teacher_card',tid=t.id)}}">Faculty ID</a><a class="btn" href="{{url_for('edit_teacher',tid=t.id)}}">Edit</a><a class="btn danger" href="{{url_for('delete_teacher',tid=t.id)}}" onclick="return confirm('Delete this faculty profile?')">Delete</a></div></td></tr>{% endfor %}</tbody></table>{% else %}<div class="empty"><h3>No faculty profiles yet</h3><p>Add a teacher or staff member to create a faculty ID card.</p><a class="btn primary" href="{{url_for('add_teacher')}}">+ Add Faculty</a></div>{% endif %}</div></section></main><div class="footer">JOY UNIVERSITY • Faculty ID Management</div>
+"""
+
+TEACHER_FORM = NAV + """
+<main class="page"><section class="panel form"><div class="formhead"><h1>{% if teacher %}Edit Faculty Profile{% else %}Create Faculty ID{% endif %}</h1><p>Teacher records are stored separately from student records.</p>{% if error %}<p style="color:#ffd7dc;font-weight:bold">{{error}}</p>{% endif %}</div><form class="formbody" method="post"><div class="upload"><div class="preview">{% if teacher and teacher.photo %}<img id="preview" src="{{teacher.photo}}">{% else %}<img id="preview" style="display:none">{% endif %}</div><div><h3>Faculty Photo</h3><input id="photoFile" type="file" accept="image/*"><input id="photoData" type="hidden" name="photo" value="{{teacher.photo if teacher else ''}}"><p style="font-size:12px;color:#71839a">Use a clear staff photo (JPG, PNG or WEBP, max 4 MB).</p></div></div><div class="grid"><div><label>FULL NAME *</label><input name="name" required value="{{teacher.name if teacher else ''}}"></div><div><label>EMPLOYEE ID *</label><input name="employee_id" required value="{{teacher.employee_id if teacher else ''}}"></div><div><label>DESIGNATION / ROLE</label><input name="designation" placeholder="Professor, Lecturer, HOD..." value="{{teacher.designation if teacher else ''}}"></div><div><label>DEPARTMENT</label><input name="department" value="{{teacher.department if teacher else ''}}"></div><div><label>PHONE</label><input name="phone" value="{{teacher.phone if teacher else ''}}"></div><div><label>EMAIL</label><input name="email" type="email" value="{{teacher.email if teacher else ''}}"></div><div><label>BLOOD GROUP</label><select name="blood_group"><option value="">Select</option>{% for b in ['A+','A-','B+','B-','AB+','AB-','O+','O-'] %}<option {% if teacher and teacher.blood_group==b %}selected{% endif %}>{{b}}</option>{% endfor %}</select></div><div><label>DATE OF BIRTH</label><input name="dob" type="date" value="{{teacher.dob if teacher else ''}}"></div><div class="full"><label>ADDRESS</label><textarea name="address">{{teacher.address if teacher else ''}}</textarea></div></div><div class="formactions"><a class="btn" href="{{url_for('teachers')}}">Cancel</a><button class="btn primary">Save Faculty Profile</button></div></form></section></main><div class="footer">JOY UNIVERSITY • Faculty ID Management</div><script>document.getElementById("photoFile").addEventListener("change",function(){var f=this.files[0];if(!f)return;if(f.size>4*1024*1024){alert("Please use an image smaller than 4 MB.");this.value="";return;}var r=new FileReader();r.onload=function(e){document.getElementById("photoData").value=e.target.result;var p=document.getElementById("preview");p.src=e.target.result;p.style.display="block"};r.readAsDataURL(f);});</script>
+"""
+
+TEACHER_CARD = NAV + """
+<main class="cardpage"><div class="toolbar no-print"><h2>Faculty ID Card • Square 1:1</h2><div class="nav"><button class="btn" onclick="frontSide()">Front</button><button class="btn" onclick="backSide()">Back</button><button class="btn green" onclick="printCard()">Print Card</button></div><div class="palette" aria-label="Faculty card colours"><span style="font-size:11px;font-weight:800;color:#fff">QUICK COLOURS</span><button type="button" class="swatch" title="Jet Black #0A0A0A" style="background:#0A0A0A" data-theme="black" onclick="setTheme('black')"></button><button type="button" class="swatch" title="Cerulean Blue #007BA7" style="background:#007BA7" data-theme="blue" onclick="setTheme('blue')"></button><button type="button" class="swatch" title="Neon Rose #FF2D95" style="background:#FF2D95" data-theme="rose" onclick="setTheme('rose')"></button><button type="button" class="swatch" title="Emerald" style="background:#0D9B78" data-theme="emerald" onclick="setTheme('emerald')"></button><button type="button" class="swatch" title="Violet" style="background:#7952D9" data-theme="violet" onclick="setTheme('violet')"></button></div></div><div class="scene"><div id="idCard" class="idcard theme-blue"><div class="face front"><div class="cardtop"><div class="mark">JU</div><div class="unititle"><b>JOY UNIVERSITY</b><small>FACULTY IDENTITY CARD</small></div></div><div class="cardcontent"><div class="faculty-mark">UNIVERSITY FACULTY • OFFICIAL ID</div><div class="photoarea" style="margin-top:12px"><div class="photo">{% if teacher.photo %}<img src="{{teacher.photo}}">{% else %}{{teacher.name[:1].upper()}}{% endif %}</div><div class="studentmain"><h2>{{teacher.name}}</h2><div class="course">{{teacher.department or 'University Faculty'}}</div><div class="prn faculty-accent">EMP ID: {{teacher.employee_id}}</div><div class="faculty-tag">{{teacher.designation or 'FACULTY MEMBER'}}</div></div></div><div class="details"><div class="detail faculty-detail"><label>Department</label><b>{{teacher.department or '-'}}</b></div><div class="detail faculty-detail"><label>Designation</label><b>{{teacher.designation or '-'}}</b></div><div class="detail faculty-detail"><label>Phone</label><b>{{teacher.phone or '-'}}</b></div><div class="detail faculty-detail"><label>Blood Group</label><b>{{teacher.blood_group or '-'}}</b></div></div></div><div class="cardbottom"><span>JOY UNIVERSITY • FACULTY</span><span class="valid">AUTHORIZED</span></div></div><div class="face backface"><div class="backcontent"><div class="backhead"><div class="mark">JU</div><div><b>JOY UNIVERSITY</b><small>FACULTY IDENTITY CARD</small></div></div><div class="backsection"><h3>Faculty Details</h3><p>Name: <b>{{teacher.name}}</b></p><p>Employee ID: <b>{{teacher.employee_id}}</b></p><p>Designation: <b>{{teacher.designation or '-'}}</b></p><p>Department: <b>{{teacher.department or '-'}}</b></p><p>Email: <b>{{teacher.email or '-'}}</b></p><p>Date of Birth: <b>{{teacher.dob or '-'}}</b></p></div><div class="backsection"><h3>Address</h3><div class="address">{{teacher.address or 'University Address'}}</div></div><div class="backsection"><h3>Institution Property</h3><p>This faculty card remains the property of JOY UNIVERSITY. Display it on campus and return it to administration when employment ends.</p></div><div class="signatures"><div class="sig">Faculty Signature</div><div class="sig">Authorized Signature</div></div></div></div></div></div></main><div class="footer no-print">JOY UNIVERSITY • Faculty ID Card</div><script>function setTheme(name){var card=document.getElementById("idCard");card.classList.remove("theme-black","theme-blue","theme-rose","theme-emerald","theme-violet");card.classList.add("theme-"+name);document.querySelectorAll(".swatch").forEach(function(b){b.setAttribute("aria-pressed",b.getAttribute("data-theme")===name?"true":"false")});try{localStorage.setItem("joyFacultyCardTheme",name)}catch(e){}}(function(){try{setTheme(localStorage.getItem("joyFacultyCardTheme")||"blue")}catch(e){setTheme("blue")}})();function frontSide(){document.getElementById("idCard").classList.remove("back");document.body.classList.remove("print-back")}function backSide(){document.getElementById("idCard").classList.add("back");document.body.classList.add("print-back")}function printCard(){window.print()}</script>
+"""
+
 def login_required(view):
     from functools import wraps
     @wraps(view)
@@ -285,6 +299,86 @@ def download_csv_template():
     writer.writerow(["Aarav Kumar", "JU2026001", "Computer Science", "B.Sc Computer Science", "1st Year", "2026-2030", "9876543210", "aarav@example.com", "O+", "2007-05-12", "Hostel A", "Campus address", ""])
     from flask import Response
     return Response(output.getvalue(), mimetype="text/csv", headers={"Content-Disposition": "attachment; filename=joy_university_students_template.csv"})
+
+
+@app.route("/teachers")
+@login_required
+def teachers():
+    q = request.args.get("q", "").strip()
+    con = db()
+    if q:
+        like = "%" + q + "%"
+        records = con.execute("SELECT * FROM teachers WHERE name LIKE ? OR employee_id LIKE ? OR department LIKE ? OR designation LIKE ? ORDER BY id DESC", (like, like, like, like)).fetchall()
+    else:
+        records = con.execute("SELECT * FROM teachers ORDER BY id DESC").fetchall()
+    total = con.execute("SELECT COUNT(*) c FROM teachers").fetchone()["c"]
+    departments = con.execute("SELECT COUNT(DISTINCT department) c FROM teachers WHERE department!=''").fetchone()["c"]
+    photos = con.execute("SELECT COUNT(*) c FROM teachers WHERE photo!=''").fetchone()["c"]
+    con.close()
+    return page(render_template_string(TEACHERS_DASH, records=records, total=total, departments=departments, photos=photos, q=q), "Faculty Management - JOY UNIVERSITY")
+
+def teacher_form_data():
+    return {k: request.form.get(k, "").strip() for k in ["name", "employee_id", "department", "designation", "phone", "email", "blood_group", "dob", "address", "photo"]}
+
+@app.route("/teacher/add", methods=["GET", "POST"])
+@login_required
+def add_teacher():
+    if request.method == "POST":
+        d = teacher_form_data()
+        if not d["name"] or not d["employee_id"]:
+            return page(render_template_string(TEACHER_FORM, teacher=d, error="Name and employee ID are required."), "Add Faculty")
+        con = db()
+        try:
+            con.execute("INSERT INTO teachers(name,employee_id,department,designation,phone,email,blood_group,dob,address,photo,joined_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)", (*[d[k] for k in ["name", "employee_id", "department", "designation", "phone", "email", "blood_group", "dob", "address", "photo"]], datetime.now().isoformat()))
+            con.commit()
+        except sqlite3.IntegrityError:
+            con.close()
+            return page(render_template_string(TEACHER_FORM, teacher=d, error="Employee ID already exists."), "Add Faculty")
+        con.close()
+        return redirect(url_for("teachers"))
+    return page(render_template_string(TEACHER_FORM, teacher=None, error=""), "Add Faculty")
+
+@app.route("/teacher/edit/<int:tid>", methods=["GET", "POST"])
+@login_required
+def edit_teacher(tid):
+    con = db()
+    old = con.execute("SELECT * FROM teachers WHERE id=?", (tid,)).fetchone()
+    con.close()
+    if not old:
+        return redirect(url_for("teachers"))
+    if request.method == "POST":
+        d = teacher_form_data()
+        if not d["name"] or not d["employee_id"]:
+            return page(render_template_string(TEACHER_FORM, teacher=d, error="Name and employee ID are required."), "Edit Faculty")
+        con = db()
+        try:
+            con.execute("UPDATE teachers SET name=?,employee_id=?,department=?,designation=?,phone=?,email=?,blood_group=?,dob=?,address=?,photo=? WHERE id=?", (*[d[k] for k in ["name", "employee_id", "department", "designation", "phone", "email", "blood_group", "dob", "address", "photo"]], tid))
+            con.commit()
+        except sqlite3.IntegrityError:
+            con.close()
+            return page(render_template_string(TEACHER_FORM, teacher=d, error="Employee ID already belongs to another faculty member."), "Edit Faculty")
+        con.close()
+        return redirect(url_for("teacher_card", tid=tid))
+    return page(render_template_string(TEACHER_FORM, teacher=old, error=""), "Edit Faculty")
+
+@app.route("/teacher/delete/<int:tid>")
+@login_required
+def delete_teacher(tid):
+    con = db()
+    con.execute("DELETE FROM teachers WHERE id=?", (tid,))
+    con.commit()
+    con.close()
+    return redirect(url_for("teachers"))
+
+@app.route("/teacher/card/<int:tid>")
+@login_required
+def teacher_card(tid):
+    con = db()
+    teacher = con.execute("SELECT * FROM teachers WHERE id=?", (tid,)).fetchone()
+    con.close()
+    if not teacher:
+        return redirect(url_for("teachers"))
+    return page(render_template_string(TEACHER_CARD, teacher=teacher), "Faculty ID Card - JOY UNIVERSITY")
 
 @app.route("/logout")
 def logout():
