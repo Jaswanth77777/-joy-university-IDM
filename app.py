@@ -313,13 +313,19 @@ def bulk_import():
                     sheet = max(workbook.worksheets, key=lambda ws: ws.max_row * max(1, ws.max_column))
                     all_rows = list(sheet.iter_rows(values_only=True))
                     header_index = 0
-                    header_tokens = {"name","full name","student name","prn","prn number","prn no","phone","phone number","mobile","mobile number","department","branch","branch/department","batch","batch number","batch no","address","full address"}
-                    for idx, candidate in enumerate(all_rows[:15]):
-                        tokens = {str(v or "").strip().lower() for v in candidate}
-                        if len(tokens & header_tokens) >= 2:
+                    def clean_header(value):
+                        return " ".join(str(value or "").replace("\\ufeff","").strip().lower().replace("_"," ").replace(".","").split())
+                    header_aliases = {"name":"name","full name":"name","student name":"name","student full name":"name","student":"name","prn":"prn","prn no":"prn","prn number":"prn","prn id":"prn","prn/id":"prn","student id":"prn","id number":"prn","phone":"phone","phone number":"phone","mobile":"phone","mobile number":"phone","department":"department","branch":"department","branch/department":"department","department/branch":"department","batch":"batch","batch number":"batch","batch no":"batch","address":"address","full address":"address","year of study":"year","course":"course"}
+                    best_score = 0
+                    for idx, candidate in enumerate(all_rows[:20]):
+                        tokens = {clean_header(v) for v in candidate if v is not None and str(v).strip()}
+                        score = len({header_aliases[t] for t in tokens if t in header_aliases})
+                        if score > best_score:
+                            best_score = score
                             header_index = idx
-                            break
-                    headers = [str(h or "").strip().lower() for h in all_rows[header_index]]
+                    if best_score < 2:
+                        raise ValueError("Could not identify the student column headings. Use columns such as Full Name, PRN No., Phone Number, Department and Address.")
+                    headers = [clean_header(h) for h in all_rows[header_index]]
                     rows = [dict(zip(headers, ["" if v is None else str(v).strip() for v in row])) for row in all_rows[header_index+1:] if any(v is not None and str(v).strip() for v in row)]
                     for image_obj in getattr(sheet, "_images", []):
                         try:
