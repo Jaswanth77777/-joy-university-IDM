@@ -231,7 +231,7 @@ BULK_CARDS = NAV + """
 .bulkprintbar{max-width:1250px;margin:20px auto;padding:0 16px;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}.bulkgrid{max-width:1250px;margin:0 auto 40px;padding:16px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.bulkid{aspect-ratio:1/1;position:relative;overflow:hidden;border-radius:18px;background:#fff;box-shadow:0 15px 35px #001f4e30;border:1px solid #dce7f5;display:flex;flex-direction:column;color:#14243e;break-inside:avoid}.bulkhead{background:linear-gradient(125deg,#007ba7,#0754bd,#12a4bf);color:#fff;padding:14px;display:flex;gap:10px;align-items:center;min-height:72px}.bulklogo{width:42px;height:42px;border-radius:12px;border:1px solid #ffffff88;display:grid;place-items:center;font-weight:900;font-size:20px}.bulkuni{font-size:14px;font-weight:900;letter-spacing:.5px}.bulksub{font-size:8px;letter-spacing:1.4px;margin-top:4px}.bulkbody{padding:12px;display:flex;gap:12px;min-height:0;flex:1}.bulkphoto{width:86px;height:108px;flex:none;border-radius:12px;overflow:hidden;background:#eaf1fb;display:grid;place-items:center;font-size:32px;font-weight:900;color:#0754bd}.bulkphoto img{width:100%;height:100%;object-fit:cover}.bulkinfo{min-width:0;overflow-wrap:anywhere}.bulkname{font-size:15px;font-weight:900;margin:2px 0 6px}.bulkprn{font-size:10px;font-weight:900;color:#007ba7;margin-bottom:7px}.bulkfield{font-size:9px;margin:5px 0;color:#40536d;line-height:1.25}.bulkfield b{color:#14243e}.bulkaddress{padding:0 12px 10px;font-size:8px;line-height:1.25;color:#40536d;overflow-wrap:anywhere}.bulkfoot{border-top:1px solid #e5edf6;padding:8px 12px;display:flex;justify-content:space-between;font-size:8px;font-weight:800;color:#60748e}@media(max-width:800px){.bulkgrid{grid-template-columns:repeat(2,minmax(0,1fr))}.bulkphoto{width:64px;height:82px}.bulkname{font-size:12px}}@media(max-width:520px){.bulkgrid{grid-template-columns:1fr}}@media print{@page{size:A4 portrait;margin:8mm}body{background:#fff!important;color:#000}.no-print,.bulkprintbar{display:none!important}.bulkgrid{max-width:none;margin:0;padding:0;grid-template-columns:repeat(2,minmax(0,1fr));gap:7mm}.bulkid{width:100%;box-shadow:none;border:1px solid #b7c3d1;break-inside:avoid;page-break-inside:avoid;print-color-adjust:exact;-webkit-print-color-adjust:exact}.bulkhead{print-color-adjust:exact;-webkit-print-color-adjust:exact}}
 </style>
 <div class="bulkprintbar no-print"><div><h1 style="margin:0">Bulk Student ID Cards</h1><p style="margin:6px 0;color:#dbe8ff">Created {{students|length}} cards. Use Print All to print the complete batch.</p></div><div class="actions"><button class="btn primary" onclick="window.print()">Print All Cards</button><a class="btn" href="{{url_for('bulk_import')}}">Import Another Batch</a><a class="btn" href="{{url_for('home')}}">Dashboard</a></div></div>
-<div class="bulkgrid">{% for s in students %}<article class="bulkid"><div class="bulkhead"><div class="bulklogo">JU</div><div><div class="bulkuni">JOY UNIVERSITY</div><div class="bulksub">STUDENT IDENTITY CARD</div></div></div><div class="bulkbody"><div class="bulkphoto">{% if s.photo %}<img src="{{s.photo}}" alt="Student photo">{% else %}{{s.name[:1].upper()}}{% endif %}</div><div class="bulkinfo"><div class="bulkname">{{s.name}}</div><div class="bulkprn">PRN: {{s.prn}}</div><div class="bulkfield"><b>Branch:</b> {{s.department}}</div><div class="bulkfield"><b>Batch:</b> {{s.batch}}</div><div class="bulkfield"><b>Phone:</b> {{s.phone}}</div><div class="bulkfield"><b>Course:</b> {{s.course or '-'}}</div></div></div><div class="bulkaddress"><b>Address:</b> {{s.address}}</div><div class="bulkfoot"><span>PROPERTY OF JOY UNIVERSITY</span><span>VALID STUDENT ID</span></div></article>{% endfor %}</div>
+<div class="bulkgrid">{% for s in students %}<article class="bulkid"><div class="bulkhead"><div class="bulklogo">JU</div><div><div class="bulkuni">JOY UNIVERSITY</div><div class="bulksub">STUDENT IDENTITY CARD</div></div></div><div class="bulkbody"><div class="bulkphoto">{% if s.photo %}<img src="{{s.photo}}" alt="Student photo">{% else %}{{s.name[:1].upper()}}{% endif %}</div><div class="bulkinfo"><div class="bulkname">{{s.name}}</div><div class="bulkprn">PRN: {{s.prn}}</div><div class="bulkfield"><b>Branch:</b> {{s.department}}</div><div class="bulkfield"><b>Batch:</b> {{s.batch}}</div><div class="bulkfield"><b>Phone:</b> {{s.phone}}</div><div class="bulkfield"><b>Course:</b> {{s.course or '-'}}</div></div></div><div class="bulkaddress"><b>Address:</b> {{s.address}}</div><div class="bulkfoot"><span>PROPERTY OF JOY UNIVERSITY</span><span>VALID STUDENT ID</span></div></article><article class="bulkid bulkback"><div class="bulkhead"><div class="bulklogo">JU</div><div><div class="bulkuni">JOY UNIVERSITY</div><div class="bulksub">STUDENT ID • BACK SIDE</div></div></div><div style="padding:14px;display:flex;flex-direction:column;gap:9px;flex:1"><div class="bulkfield"><b>Full Name:</b> {{s.name}}</div><div class="bulkfield"><b>PRN Number:</b> {{s.prn}}</div><div class="bulkfield"><b>Branch:</b> {{s.department}}</div><div class="bulkfield"><b>Batch:</b> {{s.batch}}</div><div class="bulkfield"><b>Phone:</b> {{s.phone}}</div><div class="bulkfield"><b>Full Address:</b> {{s.address}}</div><div style="font-size:8px;color:#53677f;margin-top:auto">If found, please return this card to JOY UNIVERSITY administration.</div></div><div class="bulkfoot"><span>STUDENT PROPERTY</span><span>AUTHORIZED ID</span></div></article>{% endfor %}</div>
 """
 
 TEACHERS_DASH = NAV + """
@@ -275,6 +275,7 @@ def login():
 def bulk_import():
     result = None
     error = ""
+    embedded_photos = {}
     if request.method == "POST":
         upload = request.files.get("file")
         if not upload or not upload.filename:
@@ -291,12 +292,21 @@ def bulk_import():
                         from openpyxl import load_workbook
                     except ImportError:
                         raise ValueError("Excel import requires openpyxl. Install requirements.txt and restart.")
-                    workbook = load_workbook(upload, read_only=True, data_only=True)
+                    workbook = load_workbook(upload, read_only=False, data_only=True)
                     sheet = workbook.active
                     iterator = sheet.iter_rows(values_only=True)
                     first = next(iterator, None)
                     headers = [str(h or "").strip().lower() for h in (first or [])]
                     rows = [dict(zip(headers, ["" if v is None else str(v).strip() for v in row])) for row in iterator]
+                    for image_obj in getattr(sheet, "_images", []):
+                        try:
+                            anchor_row = image_obj.anchor._from.row + 1
+                            raw_image = image_obj._data()
+                            image_format = (getattr(image_obj, "format", None) or "jpeg").lower()
+                            mime = "image/png" if image_format == "png" else ("image/webp" if image_format == "webp" else "image/jpeg")
+                            embedded_photos[anchor_row] = "data:" + mime + ";base64," + base64.b64encode(raw_image).decode("ascii")
+                        except Exception:
+                            pass
                     workbook.close()
                 else:
                     raise ValueError("Upload a .csv or .xlsx file.")
@@ -348,7 +358,7 @@ def bulk_import():
                 for row_no,row in enumerate(normalized_rows,start=2):
                     missing=[field for field in ["name","prn","phone","department","batch","address"] if not row.get(field,"").strip()]
                     photo_name=os.path.basename(row.get("photo","")).lower() if row.get("photo") else ""
-                    photo=photo_map.get(photo_name,"") if photo_name else ""
+                    photo=embedded_photos.get(row_no, "") or (photo_map.get(photo_name,"") if photo_name else "")
                     if not photo_name and photo_index<len(ordered_photos):
                         photo=ordered_photos[photo_index][1]
                         photo_index+=1
@@ -415,7 +425,7 @@ def download_csv_template():
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(["name", "prn", "department", "course", "year", "batch", "phone", "email", "blood_group", "dob", "hostel", "address", "photo"])
-    writer.writerow(["Aarav Kumar", "JU2026001", "Computer Science", "B.Sc Computer Science", "1st Year", "2026-2030", "9876543210", "aarav@example.com", "O+", "2007-05-12", "Hostel A", "Campus address", ""])
+    writer.writerow(["Aarav Kumar", "JU2026001", "Computer Science", "B.Sc Computer Science", "1st Year", "2026-2030", "9876543210", "aarav@example.com", "O+", "2007-05-12", "Hostel A", "Campus address", "JU2026001.jpg"])
     from flask import Response
     return Response(output.getvalue(), mimetype="text/csv", headers={"Content-Disposition": "attachment; filename=joy_university_students_template.csv"})
 
