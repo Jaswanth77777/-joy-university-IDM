@@ -229,8 +229,8 @@ function printCard(){window.print()}
 
 BULK_IMPORT = NAV + """
 <main class="page"><section class="panel form"><div class="formhead"><h1>Bulk Import Students &amp; Create ID Cards</h1><p>Upload up to 100 students in one batch and generate their ID cards.</p></div><div class="importbox">
-<div class="notice"><b>Mandatory:</b> full name, PRN, phone number, branch/department, batch number, full address and photo. Rows missing required details are skipped and listed. Photos can be added to each student later from their ID card page.</div>
-<p style="margin:0;color:#53677f;font-size:13px">Upload one Excel (.xlsx) student information file. Add each student's photo directly into the spreadsheet, aligned with that student's row. The system reads embedded photos when available and creates front-and-back ID cards automatically. If a student has no photo in the file, their ID card is still created with a photo placeholder. Use the Add Photo button on that student card to upload a photo later.</p>
+<div class="notice"><b>Required:</b> full name, PRN, phone number, branch/department, batch number and full address. Rows missing required details or duplicate PRNs are skipped and listed. Photos can be added to each student later from Student Profiles.</div>
+<p style="margin:0;color:#53677f;font-size:13px">Upload an Excel (.xlsx) or CSV file containing all student rows. After import, the system opens the batch ID-card page showing every successfully created student card. Photos are optional during import; add each photo later from Student Profiles.</p>
 <div class="actions"><a class="btn" href="{{url_for('download_csv_template')}}">CSV Template</a><a class="btn" href="{{url_for('download_xlsx_template')}}">Excel Template</a></div>
 <form method="post" enctype="multipart/form-data"><label>STUDENT INFORMATION FILE *</label><input type="file" name="file" accept=".xlsx,.csv" required><p style="font-size:12px;color:#71839a">Photos are optional during import. You can add or change a photo for each student after the cards are created. Import supports up to 100 students at a time.</p><div class="formactions"><a class="btn" href="{{url_for('home')}}">Cancel</a><button class="btn primary">Import &amp; Create ID Cards</button></div></form>
 {% if result %}<div class="notice">Finished: {{result.added}} created, {{result.skipped}} skipped. {% if result.ids %}<a class="btn primary" href="{{url_for('bulk_cards',ids=result.ids|join(','))}}">Open {{result.added}} ID Cards</a>{% endif %}</div>{% if result.errors %}<ul>{% for e in result.errors[:25] %}<li>{{e}}</li>{% endfor %}</ul>{% endif %}{% endif %}{% if error %}<div style="padding:12px;background:#fff0f2;color:#b42338;border-radius:10px;font-weight:700">{{error}}</div>{% endif %}
@@ -301,7 +301,8 @@ def bulk_import():
                     except csv.Error:
                         dialect = csv.excel
                     reader = csv.DictReader(io.StringIO(csv_text, newline=None), dialect=dialect)
-                    headers = [str(h or "").strip().lower() for h in (reader.fieldnames or [])]
+                    headers = [str(h or "").replace("\ufeff","").strip().lower() for h in (reader.fieldnames or [])]
+                    reader.fieldnames = headers
                     rows = [row for row in reader if any(str(v or "").strip() for v in row.values())]
                 elif filename.endswith(".xlsx"):
                     try:
@@ -403,7 +404,7 @@ def bulk_import():
                 error="Import failed. Check the spreadsheet/photo files and try again. "+str(exc)
     if request.method == "POST" and result and result.get("added", 0) > 0:
         session["last_import_report"] = result.get("errors", [])[:50]
-        return redirect(url_for("home", imported=result["added"], skipped=result["skipped"]))
+        return redirect(url_for("bulk_cards", ids=",".join(str(n) for n in result.get("ids", []))))
     return page(render_template_string(BULK_IMPORT,result=result,error=error),"Bulk Import - JOY UNIVERSITY")
 
 @app.route("/bulk-cards")
