@@ -149,7 +149,7 @@ def page(body, title="JOY UNIVERSITY"):
 NAV = """
 <header class="top"><div class="topin">
 <a class="brand" href="{{url_for('home')}}"><div class="logo">JU</div><div><b>JOY UNIVERSITY</b><small> STUDENT ID MANAGEMENT</small></div></a>
-<nav class="nav"><button type="button" class="btn" onclick="goBack()">← Back</button><a class="btn" href="{{url_for('home')}}">Dashboard</a><a class="btn" href="{{url_for('teachers')}}">Teachers</a><a class="btn" href="{{url_for('bulk_import')}}">Bulk Import</a><a class="btn primary" href="{{url_for('add_student')}}">+ Add Student</a><a class="btn danger" href="{{url_for('logout')}}">Logout</a></nav>
+<nav class="nav"><button type="button" class="btn" onclick="goBack()">← Back</button><a class="btn" href="{{url_for('home')}}">Home</a><a class="btn" href="{{url_for('home')}}">Dashboard</a><a class="btn" href="{{url_for('teachers')}}">Teachers</a><a class="btn" href="{{url_for('bulk_import')}}">Bulk Import</a><a class="btn primary" href="{{url_for('add_student')}}">+ Add Student</a><a class="btn danger" href="{{url_for('logout')}}">Logout</a></nav>
 </div></header>
 """
 
@@ -309,13 +309,17 @@ def bulk_import():
                     except ImportError:
                         raise ValueError("Excel import requires openpyxl. Install requirements.txt and restart.")
                     workbook = load_workbook(upload, read_only=False, data_only=True)
-                    # Choose the worksheet containing the most student rows, rather than assuming
-                    # the first/active tab contains the uploaded roster.
                     sheet = max(workbook.worksheets, key=lambda ws: ws.max_row * max(1, ws.max_column))
-                    iterator = sheet.iter_rows(values_only=True)
-                    first = next(iterator, None)
-                    headers = [str(h or "").strip().lower() for h in (first or [])]
-                    rows = [dict(zip(headers, ["" if v is None else str(v).strip() for v in row])) for row in iterator if any(v is not None and str(v).strip() for v in row)]
+                    all_rows = list(sheet.iter_rows(values_only=True))
+                    header_index = 0
+                    header_tokens = {"name","full name","student name","prn","prn number","prn no","phone","phone number","mobile","mobile number","department","branch","branch/department","batch","batch number","batch no","address","full address"}
+                    for idx, candidate in enumerate(all_rows[:15]):
+                        tokens = {str(v or "").strip().lower() for v in candidate}
+                        if len(tokens & header_tokens) >= 2:
+                            header_index = idx
+                            break
+                    headers = [str(h or "").strip().lower() for h in all_rows[header_index]]
+                    rows = [dict(zip(headers, ["" if v is None else str(v).strip() for v in row])) for row in all_rows[header_index+1:] if any(v is not None and str(v).strip() for v in row)]
                     for image_obj in getattr(sheet, "_images", []):
                         try:
                             anchor_row = image_obj.anchor._from.row + 1
@@ -328,7 +332,7 @@ def bulk_import():
                     workbook.close()
                 else:
                     raise ValueError("Upload a .csv or .xlsx file.")
-                aliases = {"full name":"name","student name":"name","prn no":"prn","prn number":"prn","branch":"department","branch name":"department","department/branch":"department","batch no":"batch","batch number":"batch","phone number":"phone","mobile":"phone","mobile number":"phone","photo filename":"photo","photo file":"photo","image":"photo"}
+                aliases = {"full name":"name","student name":"name","student full name":"name","student":"name","prn no":"prn","prn number":"prn","prn id":"prn","prn/id":"prn","id number":"prn","student id":"prn","branch":"department","branch name":"department","branch/department":"department","department/branch":"department","department name":"department","batch no":"batch","batch number":"batch","batch year":"batch","phone number":"phone","mobile":"phone","mobile no":"phone","mobile number":"phone","contact number":"phone","contact":"phone","full address":"address","permanent address":"address","residential address":"address","address of student":"address","photo filename":"photo","photo file":"photo","photo name":"photo","image":"photo","image filename":"photo","program":"course","degree":"course","academic year":"year"}
                 normalized_rows=[]
                 for row in rows:
                     normalized={}
