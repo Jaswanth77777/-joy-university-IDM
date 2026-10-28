@@ -397,10 +397,18 @@ def bulk_import():
                         continue
                     values=[row.get(k,"") for k in fields]
                     try:
-                        cur=con.execute("INSERT INTO students(name,prn,department,course,year,batch,phone,email,blood_group,dob,hostel,address,photo,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",(*values,photo,datetime.now().isoformat()))
-                        ids.append(cur.lastrowid); added+=1
+                        existing=con.execute("SELECT id FROM students WHERE prn=?",(row.get("prn","").strip(),)).fetchone()
+                        if existing:
+                            sid=existing["id"]
+                            con.execute("UPDATE students SET name=?,department=?,course=?,year=?,batch=?,phone=?,email=?,blood_group=?,dob=?,hostel=?,address=?,photo=CASE WHEN ?!='' THEN ? ELSE photo END WHERE id=?",(*values[:1],*values[2:],photo,photo,sid))
+                            ids.append(sid)
+                            added+=1
+                            errors.append("Row "+str(row_no)+": updated existing PRN "+row.get("prn",""))
+                        else:
+                            cur=con.execute("INSERT INTO students(name,prn,department,course,year,batch,phone,email,blood_group,dob,hostel,address,photo,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",(*values,photo,datetime.now().isoformat()))
+                            ids.append(cur.lastrowid); added+=1
                     except sqlite3.IntegrityError:
-                        skipped+=1; errors.append("Row "+str(row_no)+": duplicate PRN "+row.get("prn",""))
+                        skipped+=1; errors.append("Row "+str(row_no)+": could not save PRN "+row.get("prn",""))
                 con.commit(); con.close()
                 result={"added":added,"skipped":skipped,"ids":ids,"errors":errors}
                 if ids: session["last_bulk_ids"]=ids
