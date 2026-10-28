@@ -2,11 +2,15 @@ import os
 import csv
 import io
 import sqlite3
+import zipfile
+import base64
+import mimetypes
+
 from datetime import datetime
 from flask import Flask, request, redirect, url_for, render_template_string, session
 
 app = Flask(__name__)
-app.config["MAX_CONTENT_LENGTH"] = 6 * 1024 * 1024
+app.config["MAX_CONTENT_LENGTH"] = 60 * 1024 * 1024
 app.secret_key = os.getenv("SECRET_KEY", "joy-university-change-this-secret")
 ADMIN_USER = os.getenv("JOY_ADMIN_USER", "admin")
 ADMIN_PASSWORD = os.getenv("JOY_ADMIN_PASSWORD", "joy123")
@@ -153,7 +157,7 @@ DASH = NAV + """
 <main class="page">
 <section class="hero"><h1>Student &amp; Faculty ID Studio</h1><p>Manage separate student and teacher profiles, then create polished square 3D ID cards with quick colour themes.</p>
 <div class="stats"><div class="stat"><b>{{total}}</b>Total Students</div><div class="stat"><b>{{teachers_total}}</b>Faculty Members</div><div class="stat"><b>{{departments}}</b>Departments</div><div class="stat"><b>{{photos}}</b>Photos Added</div></div><div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:18px"><a class="btn" style="background:#fff;color:#0754bd" href="{{url_for('teachers')}}">Manage Faculty</a><a class="btn" style="background:#fff;color:#0754bd" href="{{url_for('add_teacher')}}">+ Add Faculty ID</a></div></section>
-<section class="panel"><div class="panelhead"><div><h2 style="margin:0">Student Profiles</h2><div style="font-size:12px;color:#71839a;margin-top:4px">Logged in as {{session_user}}</div></div><div class="actions"><a class="btn" href="{{url_for('download_csv_template')}}">CSV Template</a><a class="btn primary" href="{{url_for('bulk_import')}}">Bulk Import CSV</a></div><form class="search"><input name="q" value="{{q}}" placeholder="Search name, PRN, department, course..."><button class="btn primary">Search</button>{% if q %}<a class="btn" href="{{url_for('home')}}">Clear</a>{% endif %}</form></div>
+<section class="panel"><div class="panelhead"><div><h2 style="margin:0">Student Profiles</h2><div style="font-size:12px;color:#71839a;margin-top:4px">Logged in as {{session_user}}</div></div><div class="actions"><a class="btn" href="{{url_for('download_csv_template')}}">CSV Template</a><a class="btn primary" href="{{url_for('bulk_import')}}">Bulk Import 100 IDs</a></div><form class="search"><input name="q" value="{{q}}" placeholder="Search name, PRN, department, course..."><button class="btn primary">Search</button>{% if q %}<a class="btn" href="{{url_for('home')}}">Clear</a>{% endif %}</form></div>
 <div class="tablewrap">{% if students %}<table><thead><tr><th>Student</th><th>PRN</th><th>Department</th><th>Course</th><th>Year</th><th>Actions</th></tr></thead><tbody>
 {% for s in students %}<tr><td><div class="student"><div class="mini">{% if s.photo %}<img src="{{s.photo}}">{% else %}{{s.name[:1].upper()}}{% endif %}</div><b>{{s.name}}</b></div></td><td>{{s.prn}}</td><td>{{s.department or "-"}}</td><td>{{s.course or "-"}}</td><td>{{s.year or "-"}}</td><td><div class="actions"><a class="btn primary" href="{{url_for('card',sid=s.id)}}">ID Card</a><a class="btn" href="{{url_for('edit_student',sid=s.id)}}">Edit</a><a class="btn danger" href="{{url_for('delete_student',sid=s.id)}}" onclick="return confirm('Delete this student?')">Delete</a></div></td></tr>{% endfor %}
 </tbody></table>{% else %}<div class="empty"><h3>No students found</h3><p>Add a student to generate an ID card.</p><a class="btn primary" href="{{url_for('add_student')}}">+ Add Student</a></div>{% endif %}</div></section>
@@ -163,20 +167,20 @@ DASH = NAV + """
 FORM = NAV + """
 <main class="page"><section class="panel form"><div class="formhead"><h1>{% if student %}Edit Student Profile{% else %}Add New Student{% endif %}</h1><p>Enter the details used on the university ID card.</p>{% if error %}<p style="color:#ffd7dc;font-weight:bold">{{error}}</p>{% endif %}</div>
 <form class="formbody" method="post">
-<div class="upload"><div class="preview">{% if student and student.photo %}<img id="preview" src="{{student.photo}}">{% else %}<img id="preview" style="display:none">{% endif %}</div><div><h3>Student Photo</h3><input id="photoFile" type="file" accept="image/*"><input id="photoData" type="hidden" name="photo" value="{{student.photo if student else ''}}"><p style="font-size:12px;color:#71839a">Use a JPG/PNG/WEBP image. It is stored with the student profile.</p></div></div>
+<div class="upload"><div class="preview">{% if student and student.photo %}<img id="preview" src="{{student.photo}}">{% else %}<img id="preview" style="display:none">{% endif %}</div><div><h3>Student Photo</h3><input id="photoFile" type="file" accept="image/*" {% if not student or not student.photo %}required{% endif %}><input id="photoData" type="hidden" name="photo" value="{{student.photo if student else ''}}"><p style="font-size:12px;color:#71839a">Use a JPG/PNG/WEBP image. It is stored with the student profile.</p></div></div>
 <div class="grid">
 <div><label>FULL NAME *</label><input name="name" required value="{{student.name if student else ''}}"></div>
 <div><label>PRN / STUDENT ID *</label><input name="prn" required value="{{student.prn if student else ''}}"></div>
-<div><label>DEPARTMENT</label><input name="department" value="{{student.department if student else ''}}"></div>
+<div><label>BRANCH / DEPARTMENT *</label><input name="department" required value="{{student.department if student else ''}}"></div>
 <div><label>COURSE</label><input name="course" value="{{student.course if student else ''}}"></div>
 <div><label>YEAR</label><select name="year"><option value="">Select</option>{% for y in ['1st Year','2nd Year','3rd Year','4th Year','5th Year'] %}<option {% if student and student.year==y %}selected{% endif %}>{{y}}</option>{% endfor %}</select></div>
-<div><label>BATCH</label><input name="batch" value="{{student.batch if student else ''}}"></div>
-<div><label>PHONE</label><input name="phone" value="{{student.phone if student else ''}}"></div>
+<div><label>BATCH NO. *</label><input name="batch" required value="{{student.batch if student else ''}}"></div>
+<div><label>PHONE NUMBER *</label><input name="phone" required type="tel" value="{{student.phone if student else ''}}"></div>
 <div><label>EMAIL</label><input name="email" type="email" value="{{student.email if student else ''}}"></div>
 <div><label>BLOOD GROUP</label><select name="blood_group"><option value="">Select</option>{% for b in ['A+','A-','B+','B-','AB+','AB-','O+','O-'] %}<option {% if student and student.blood_group==b %}selected{% endif %}>{{b}}</option>{% endfor %}</select></div>
 <div><label>DATE OF BIRTH</label><input name="dob" type="date" value="{{student.dob if student else ''}}"></div>
 <div><label>HOSTEL / RESIDENCE</label><input name="hostel" value="{{student.hostel if student else ''}}"></div>
-<div class="full"><label>ADDRESS</label><textarea name="address">{{student.address if student else ''}}</textarea></div>
+<div class="full"><label>FULL ADDRESS *</label><textarea name="address" required>{{student.address if student else ''}}</textarea></div>
 </div><div class="formactions"><a class="btn" href="{{url_for('home')}}">Cancel</a><button class="btn primary">Save Student</button></div></form></section></main>
 <div class="footer">JOY UNIVERSITY • Student ID Card Management System</div>
 <script>
@@ -213,20 +217,22 @@ function printCard(){window.print()}
 
 
 BULK_IMPORT = NAV + """
-<main class="page"><section class="panel form"><div class="formhead"><h1>Bulk Import Students</h1><p>Upload a CSV file to add many student profiles at once.</p></div>
-<div class="importbox">
-<div class="notice">Use the CSV template so column names match. Existing PRNs are skipped to avoid duplicates.</div>
-<p style="margin:0;color:#53677f;font-size:13px">Required columns: <b>name, prn</b>. Optional columns: department, course, year, batch, phone, email, blood_group, dob, hostel, address, photo.</p>
-<a class="btn" style="width:max-content" href="{{url_for('download_csv_template')}}">Download CSV Template</a>
-<form method="post" enctype="multipart/form-data">
-<label>CSV FILE</label><input type="file" name="file" accept=".csv,text/csv" required>
-<div class="formactions"><a class="btn" href="{{url_for('home')}}">Cancel</a><button class="btn primary">Import Students</button></div>
-</form>
-{% if result %}<div class="notice">Import finished: {{result.added}} added, {{result.skipped}} skipped.</div>{% endif %}
-{% if error %}<div style="padding:12px;background:#fff0f2;color:#b42338;border-radius:10px;font-weight:700">{{error}}</div>{% endif %}
-</div></section></main><div class="footer">JOY UNIVERSITY • Bulk Student Import</div>
+<main class="page"><section class="panel form"><div class="formhead"><h1>Bulk Import Students &amp; Create ID Cards</h1><p>Upload up to 100 students in one batch, including their photos.</p></div><div class="importbox">
+<div class="notice"><b>Mandatory:</b> full name, PRN, phone number, branch/department, batch number, full address and photo. Rows missing these details are skipped and listed.</div>
+<p style="margin:0;color:#53677f;font-size:13px">Upload CSV or Excel (.xlsx). For photos, upload a ZIP whose filenames match the spreadsheet's <b>photo</b> column. If no photo filenames are supplied, images are matched alphabetically to rows. You can also select multiple photos.</p>
+<div class="actions"><a class="btn" href="{{url_for('download_csv_template')}}">CSV Template</a><a class="btn" href="{{url_for('download_xlsx_template')}}">Excel Template</a></div>
+<form method="post" enctype="multipart/form-data"><label>STUDENT INFORMATION FILE *</label><input type="file" name="file" accept=".csv,.xlsx" required><label>PHOTOS ZIP FILE</label><input type="file" name="photo_zip" accept=".zip"><label>OR SELECT MULTIPLE PHOTOS</label><input type="file" name="photos" accept="image/*" multiple><p style="font-size:12px;color:#71839a">For reliable matching, name photos using the PRN or exact filename in the photo column. A ZIP is recommended for 50–100 photos.</p><div class="formactions"><a class="btn" href="{{url_for('home')}}">Cancel</a><button class="btn primary">Import &amp; Create ID Cards</button></div></form>
+{% if result %}<div class="notice">Finished: {{result.added}} created, {{result.skipped}} skipped. {% if result.ids %}<a class="btn primary" href="{{url_for('bulk_cards',ids=result.ids|join(','))}}">Open {{result.added}} ID Cards</a>{% endif %}</div>{% if result.errors %}<ul>{% for e in result.errors[:25] %}<li>{{e}}</li>{% endfor %}</ul>{% endif %}{% endif %}{% if error %}<div style="padding:12px;background:#fff0f2;color:#b42338;border-radius:10px;font-weight:700">{{error}}</div>{% endif %}
+</div></section></main><div class="footer">JOY UNIVERSITY • Bulk Student ID Studio</div>
 """
 
+BULK_CARDS = NAV + """
+<style>
+.bulkprintbar{max-width:1250px;margin:20px auto;padding:0 16px;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}.bulkgrid{max-width:1250px;margin:0 auto 40px;padding:16px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.bulkid{aspect-ratio:1/1;position:relative;overflow:hidden;border-radius:18px;background:#fff;box-shadow:0 15px 35px #001f4e30;border:1px solid #dce7f5;display:flex;flex-direction:column;color:#14243e;break-inside:avoid}.bulkhead{background:linear-gradient(125deg,#007ba7,#0754bd,#12a4bf);color:#fff;padding:14px;display:flex;gap:10px;align-items:center;min-height:72px}.bulklogo{width:42px;height:42px;border-radius:12px;border:1px solid #ffffff88;display:grid;place-items:center;font-weight:900;font-size:20px}.bulkuni{font-size:14px;font-weight:900;letter-spacing:.5px}.bulksub{font-size:8px;letter-spacing:1.4px;margin-top:4px}.bulkbody{padding:12px;display:flex;gap:12px;min-height:0;flex:1}.bulkphoto{width:86px;height:108px;flex:none;border-radius:12px;overflow:hidden;background:#eaf1fb;display:grid;place-items:center;font-size:32px;font-weight:900;color:#0754bd}.bulkphoto img{width:100%;height:100%;object-fit:cover}.bulkinfo{min-width:0;overflow-wrap:anywhere}.bulkname{font-size:15px;font-weight:900;margin:2px 0 6px}.bulkprn{font-size:10px;font-weight:900;color:#007ba7;margin-bottom:7px}.bulkfield{font-size:9px;margin:5px 0;color:#40536d;line-height:1.25}.bulkfield b{color:#14243e}.bulkaddress{padding:0 12px 10px;font-size:8px;line-height:1.25;color:#40536d;overflow-wrap:anywhere}.bulkfoot{border-top:1px solid #e5edf6;padding:8px 12px;display:flex;justify-content:space-between;font-size:8px;font-weight:800;color:#60748e}@media(max-width:800px){.bulkgrid{grid-template-columns:repeat(2,minmax(0,1fr))}.bulkphoto{width:64px;height:82px}.bulkname{font-size:12px}}@media(max-width:520px){.bulkgrid{grid-template-columns:1fr}}@media print{@page{size:A4 portrait;margin:8mm}body{background:#fff!important;color:#000}.no-print,.bulkprintbar{display:none!important}.bulkgrid{max-width:none;margin:0;padding:0;grid-template-columns:repeat(2,minmax(0,1fr));gap:7mm}.bulkid{width:100%;box-shadow:none;border:1px solid #b7c3d1;break-inside:avoid;page-break-inside:avoid;print-color-adjust:exact;-webkit-print-color-adjust:exact}.bulkhead{print-color-adjust:exact;-webkit-print-color-adjust:exact}}
+</style>
+<div class="bulkprintbar no-print"><div><h1 style="margin:0">Bulk Student ID Cards</h1><p style="margin:6px 0;color:#dbe8ff">Created {{students|length}} cards. Use Print All to print the complete batch.</p></div><div class="actions"><button class="btn primary" onclick="window.print()">Print All Cards</button><a class="btn" href="{{url_for('bulk_import')}}">Import Another Batch</a><a class="btn" href="{{url_for('home')}}">Dashboard</a></div></div>
+<div class="bulkgrid">{% for s in students %}<article class="bulkid"><div class="bulkhead"><div class="bulklogo">JU</div><div><div class="bulkuni">JOY UNIVERSITY</div><div class="bulksub">STUDENT IDENTITY CARD</div></div></div><div class="bulkbody"><div class="bulkphoto">{% if s.photo %}<img src="{{s.photo}}" alt="Student photo">{% else %}{{s.name[:1].upper()}}{% endif %}</div><div class="bulkinfo"><div class="bulkname">{{s.name}}</div><div class="bulkprn">PRN: {{s.prn}}</div><div class="bulkfield"><b>Branch:</b> {{s.department}}</div><div class="bulkfield"><b>Batch:</b> {{s.batch}}</div><div class="bulkfield"><b>Phone:</b> {{s.phone}}</div><div class="bulkfield"><b>Course:</b> {{s.course or '-'}}</div></div></div><div class="bulkaddress"><b>Address:</b> {{s.address}}</div><div class="bulkfoot"><span>PROPERTY OF JOY UNIVERSITY</span><span>VALID STUDENT ID</span></div></article>{% endfor %}</div>
+"""
 
 TEACHERS_DASH = NAV + """
 <main class="page"><section class="hero"><h1>Faculty ID Management</h1><p>Faculty records are separate from student records. Create individual staff cards with quick colour themes.</p><div class="stats"><div class="stat"><b>{{total}}</b>Faculty Members</div><div class="stat"><b>{{departments}}</b>Departments</div><div class="stat"><b>{{photos}}</b>Photos Added</div><div class="stat"><b>JU</b>Faculty ID Studio</div></div><div style="display:flex;gap:9px;flex-wrap:wrap;margin-top:16px"><a class="btn" style="background:#fff;color:#0754bd" href="{{url_for('home')}}">Student Management</a><a class="btn" style="background:#fff;color:#0754bd" href="{{url_for('add_teacher')}}">+ Add Faculty</a></div></section>
@@ -272,38 +278,135 @@ def bulk_import():
     if request.method == "POST":
         upload = request.files.get("file")
         if not upload or not upload.filename:
-            error = "Choose a CSV file first."
-        elif not upload.filename.lower().endswith(".csv"):
-            error = "Please upload a .csv file."
+            error = "Choose a CSV or Excel spreadsheet first."
         else:
             try:
-                stream = io.StringIO(upload.stream.read().decode("utf-8-sig"), newline=None)
-                reader = csv.DictReader(stream)
-                if not reader.fieldnames or not {"name", "prn"}.issubset({h.strip().lower() for h in reader.fieldnames if h}):
-                    raise ValueError("CSV must include name and prn column headers.")
-                fields = ["name", "prn", "department", "course", "year", "batch", "phone", "email", "blood_group", "dob", "hostel", "address", "photo"]
-                con = db()
-                added = 0
-                skipped = 0
-                for row in reader:
-                    normalized = {(key or "").strip().lower(): (value or "").strip() for key, value in row.items()}
-                    name = normalized.get("name", "")
-                    prn = normalized.get("prn", "")
-                    if not name or not prn:
-                        skipped += 1
-                        continue
-                    values = [name, prn] + [normalized.get(k, "") for k in fields[2:]]
+                filename = upload.filename.lower()
+                if filename.endswith(".csv"):
+                    reader = csv.DictReader(io.StringIO(upload.stream.read().decode("utf-8-sig"), newline=None))
+                    headers = [str(h or "").strip().lower() for h in (reader.fieldnames or [])]
+                    rows = list(reader)
+                elif filename.endswith(".xlsx"):
                     try:
-                        con.execute("INSERT INTO students(name,prn,department,course,year,batch,phone,email,blood_group,dob,hostel,address,photo,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)", (*values, datetime.now().isoformat()))
-                        added += 1
+                        from openpyxl import load_workbook
+                    except ImportError:
+                        raise ValueError("Excel import requires openpyxl. Install requirements.txt and restart.")
+                    workbook = load_workbook(upload, read_only=True, data_only=True)
+                    sheet = workbook.active
+                    iterator = sheet.iter_rows(values_only=True)
+                    first = next(iterator, None)
+                    headers = [str(h or "").strip().lower() for h in (first or [])]
+                    rows = [dict(zip(headers, ["" if v is None else str(v).strip() for v in row])) for row in iterator]
+                    workbook.close()
+                else:
+                    raise ValueError("Upload a .csv or .xlsx file.")
+                aliases = {"full name":"name","student name":"name","prn no":"prn","prn number":"prn","branch":"department","branch name":"department","department/branch":"department","batch no":"batch","batch number":"batch","phone number":"phone","mobile":"phone","mobile number":"phone","photo filename":"photo","photo file":"photo","image":"photo"}
+                normalized_rows=[]
+                for row in rows:
+                    normalized={}
+                    for key,value in row.items():
+                        k=str(key or "").strip().lower()
+                        normalized[aliases.get(k,k)]=str(value or "").strip()
+                    normalized_rows.append(normalized)
+                if not headers or not any(aliases.get(h,h)=="name" for h in headers) or not any(aliases.get(h,h)=="prn" for h in headers):
+                    raise ValueError("Spreadsheet must include Full Name and PRN columns.")
+                if len(normalized_rows)>100:
+                    raise ValueError("Upload up to 100 students per batch. Split larger files into smaller batches.")
+                photo_map={}
+                ordered_photos=[]
+                photo_zip=request.files.get("photo_zip")
+                if photo_zip and photo_zip.filename:
+                    if not photo_zip.filename.lower().endswith(".zip"):
+                        raise ValueError("Photo archive must be a ZIP file.")
+                    with zipfile.ZipFile(photo_zip.stream) as zf:
+                        infos=sorted([i for i in zf.infolist() if not i.is_dir()],key=lambda i:i.filename.lower())
+                        for info in infos:
+                            if os.path.splitext(info.filename)[1].lower() not in [".jpg",".jpeg",".png",".webp",".gif"] or info.file_size>5*1024*1024:
+                                continue
+                            raw=zf.read(info)
+                            mime=mimetypes.guess_type(info.filename)[0] or "image/jpeg"
+                            data="data:"+mime+";base64,"+base64.b64encode(raw).decode("ascii")
+                            name=os.path.basename(info.filename).lower()
+                            photo_map[name]=data
+                            ordered_photos.append((name,data))
+                for photo_file in request.files.getlist("photos"):
+                    if not photo_file or not photo_file.filename: continue
+                    raw=photo_file.read()
+                    if len(raw)>5*1024*1024: continue
+                    mime=mimetypes.guess_type(photo_file.filename)[0] or "image/jpeg"
+                    data="data:"+mime+";base64,"+base64.b64encode(raw).decode("ascii")
+                    name=os.path.basename(photo_file.filename).lower()
+                    photo_map[name]=data
+                    ordered_photos.append((name,data))
+                con=db()
+                added=0
+                skipped=0
+                ids=[]
+                errors=[]
+                photo_index=0
+                fields=["name","prn","department","course","year","batch","phone","email","blood_group","dob","hostel","address"]
+                for row_no,row in enumerate(normalized_rows,start=2):
+                    missing=[field for field in ["name","prn","phone","department","batch","address"] if not row.get(field,"").strip()]
+                    photo_name=os.path.basename(row.get("photo","")).lower() if row.get("photo") else ""
+                    photo=photo_map.get(photo_name,"") if photo_name else ""
+                    if not photo_name and photo_index<len(ordered_photos):
+                        photo=ordered_photos[photo_index][1]
+                        photo_index+=1
+                    if not photo: missing.append("photo")
+                    if missing:
+                        skipped+=1
+                        errors.append("Row "+str(row_no)+": missing "+", ".join(missing))
+                        continue
+                    values=[row.get(k,"") for k in fields]
+                    try:
+                        cur=con.execute("INSERT INTO students(name,prn,department,course,year,batch,phone,email,blood_group,dob,hostel,address,photo,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",(*values,photo,datetime.now().isoformat()))
+                        ids.append(cur.lastrowid); added+=1
                     except sqlite3.IntegrityError:
-                        skipped += 1
-                con.commit()
-                con.close()
-                result = {"added": added, "skipped": skipped}
-            except (UnicodeDecodeError, csv.Error, ValueError) as exc:
-                error = "Could not import CSV: " + str(exc)
-    return page(render_template_string(BULK_IMPORT, result=result, error=error), "Bulk Import - JOY UNIVERSITY")
+                        skipped+=1; errors.append("Row "+str(row_no)+": duplicate PRN "+row.get("prn",""))
+                con.commit(); con.close()
+                result={"added":added,"skipped":skipped,"ids":ids,"errors":errors}
+                if ids: session["last_bulk_ids"]=ids
+            except (UnicodeDecodeError,csv.Error,ValueError,zipfile.BadZipFile,KeyError) as exc:
+                error="Could not import spreadsheet: "+str(exc)
+            except Exception as exc:
+                error="Import failed. Check the spreadsheet/photo files and try again. "+str(exc)
+    return page(render_template_string(BULK_IMPORT,result=result,error=error),"Bulk Import - JOY UNIVERSITY")
+
+@app.route("/bulk-cards")
+@login_required
+def bulk_cards():
+    ids=[]
+    for value in request.args.get("ids","").split(","):
+        try:
+            n=int(value)
+            if n>0 and n not in ids: ids.append(n)
+        except ValueError: pass
+    if not ids: ids=session.get("last_bulk_ids",[])
+    ids=ids[:100]
+    if not ids: return redirect(url_for("bulk_import"))
+    con=db()
+    marks=",".join("?" for _ in ids)
+    records=con.execute("SELECT * FROM students WHERE id IN ("+marks+")",ids).fetchall()
+    con.close()
+    by_id={r["id"]:r for r in records}
+    students=[by_id[n] for n in ids if n in by_id]
+    return page(render_template_string(BULK_CARDS,students=students),"Bulk ID Cards - JOY UNIVERSITY")
+
+@app.route("/bulk-import/template.xlsx")
+@login_required
+def download_xlsx_template():
+    try:
+        from openpyxl import Workbook
+    except ImportError:
+        return redirect(url_for("download_csv_template"))
+    from flask import send_file
+    book=Workbook()
+    sheet=book.active
+    sheet.title="Students"
+    sheet.append(["name","prn","phone","department","batch","address","course","year","email","blood_group","dob","hostel","photo"])
+    sheet.append(["Aarav Kumar","JU2026001","9876543210","Computer Science","2026-2030","Campus address","B.Sc Computer Science","1st Year","aarav@example.com","O+","2007-05-12","Hostel A","JU2026001.jpg"])
+    output=io.BytesIO(); book.save(output); output.seek(0)
+    return send_file(output,as_attachment=True,download_name="joy_university_students_template.xlsx",mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 @app.route("/bulk-import/template.csv")
 @login_required
@@ -426,8 +529,8 @@ def form_data():
 def add_student():
     if request.method=="POST":
         d=form_data()
-        if not d["name"] or not d["prn"]:
-            return page(render_template_string(FORM,student=d,error="Name and PRN are required."),"Add Student")
+        if not all(d.get(k) for k in ["name","prn","phone","department","batch","address","photo"]):
+            return page(render_template_string(FORM,student=d,error="Required: full name, PRN, phone, branch/department, batch and address. Please upload a photo."),"Add Student")
         con=db()
         try:
             con.execute("""INSERT INTO students(name,prn,department,course,year,batch,phone,email,blood_group,dob,hostel,address,photo,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",(*[d[k] for k in ["name","prn","department","course","year","batch","phone","email","blood_group","dob","hostel","address","photo"]],datetime.now().isoformat()))
@@ -446,8 +549,8 @@ def edit_student(sid):
     if not old:return redirect(url_for("home"))
     if request.method=="POST":
         d=form_data()
-        if not d["name"] or not d["prn"]:
-            return page(render_template_string(FORM,student=d,error="Name and PRN are required."),"Edit Student")
+        if not all(d.get(k) for k in ["name","prn","phone","department","batch","address","photo"]):
+            return page(render_template_string(FORM,student=d,error="Required: full name, PRN, phone, branch/department, batch and address. Please upload a photo."),"Edit Student")
         con=db()
         try:
             con.execute("""UPDATE students SET name=?,prn=?,department=?,course=?,year=?,batch=?,phone=?,email=?,blood_group=?,dob=?,hostel=?,address=?,photo=? WHERE id=?""",(*[d[k] for k in ["name","prn","department","course","year","batch","phone","email","blood_group","dob","hostel","address","photo"]],sid))
