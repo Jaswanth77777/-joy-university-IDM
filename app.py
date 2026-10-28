@@ -229,7 +229,7 @@ function printCard(){window.print()}
 
 BULK_IMPORT = NAV + """
 <main class="page"><section class="panel form"><div class="formhead"><h1>Bulk Import Students &amp; Create ID Cards</h1><p>Upload up to 100 students in one batch and generate their ID cards.</p></div><div class="importbox">
-<div class="notice"><b>Required:</b> full name, PRN, phone number, branch/department, batch number and full address. Rows missing required details or duplicate PRNs are skipped and listed. Photos can be added to each student later from Student Profiles.</div>
+<div class="notice"><b>Required:</b> full name, PRN, phone number, branch/department, batch number and full address. Only student name and PRN/ID are required for bulk import. Other fields may be blank and can be edited later. Duplicate PRNs and rows without a name or ID are skipped and listed. Photos can be added later from Student Profiles.</div>
 <p style="margin:0;color:#53677f;font-size:13px">Upload an Excel (.xlsx) or CSV file containing all student rows. After import, the system opens the batch ID-card page showing every successfully created student card. Photos are optional during import; add each photo later from Student Profiles.</p>
 <div class="actions"><a class="btn" href="{{url_for('download_csv_template')}}">CSV Template</a><a class="btn" href="{{url_for('download_xlsx_template')}}">Excel Template</a></div>
 <form method="post" enctype="multipart/form-data"><label>STUDENT INFORMATION FILE *</label><input type="file" name="file" accept=".xlsx,.csv" required><p style="font-size:12px;color:#71839a">Photos are optional during import. You can add or change a photo for each student after the cards are created. Import supports up to 100 students at a time.</p><div class="formactions"><a class="btn" href="{{url_for('home')}}">Cancel</a><button class="btn primary">Import &amp; Create ID Cards</button></div></form>
@@ -342,7 +342,7 @@ def bulk_import():
                         normalized[aliases.get(k,k)]=str(value or "").strip()
                     normalized_rows.append(normalized)
                 if not headers or not any(aliases.get(h,h)=="name" for h in headers) or not any(aliases.get(h,h)=="prn" for h in headers):
-                    raise ValueError("Spreadsheet must include Full Name and PRN columns.")
+                    raise ValueError("Spreadsheet must include a student name column (Name/Full Name) and a unique ID column (PRN/Student ID). Use the Excel Template if needed.")
                 if len(normalized_rows)>100:
                     raise ValueError("Upload up to 100 students per batch. Split larger files into smaller batches.")
                 photo_map={}
@@ -379,7 +379,7 @@ def bulk_import():
                 photo_index=0
                 fields=["name","prn","department","course","year","batch","phone","email","blood_group","dob","hostel","address"]
                 for row_no,row in enumerate(normalized_rows,start=2):
-                    missing=[field for field in ["name","prn","phone","department","batch","address"] if not row.get(field,"").strip()]
+                    missing=[field for field in ["name","prn"] if not row.get(field,"").strip()]
                     photo_name=os.path.basename(row.get("photo","")).lower() if row.get("photo") else ""
                     photo=embedded_photos.get(row_no, "") or (photo_map.get(photo_name,"") if photo_name else "")
                     if not photo_name and photo_index<len(ordered_photos):
