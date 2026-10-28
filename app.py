@@ -295,20 +295,27 @@ def bulk_import():
             try:
                 filename = upload.filename.lower()
                 if filename.endswith(".csv"):
-                    reader = csv.DictReader(io.StringIO(upload.stream.read().decode("utf-8-sig"), newline=None))
+                    csv_text = upload.stream.read().decode("utf-8-sig")
+                    try:
+                        dialect = csv.Sniffer().sniff(csv_text[:8192], delimiters=",;\\t")
+                    except csv.Error:
+                        dialect = csv.excel
+                    reader = csv.DictReader(io.StringIO(csv_text, newline=None), dialect=dialect)
                     headers = [str(h or "").strip().lower() for h in (reader.fieldnames or [])]
-                    rows = list(reader)
+                    rows = [row for row in reader if any(str(v or "").strip() for v in row.values())]
                 elif filename.endswith(".xlsx"):
                     try:
                         from openpyxl import load_workbook
                     except ImportError:
                         raise ValueError("Excel import requires openpyxl. Install requirements.txt and restart.")
                     workbook = load_workbook(upload, read_only=False, data_only=True)
-                    sheet = workbook.active
+                    # Choose the worksheet containing the most student rows, rather than assuming
+                    # the first/active tab contains the uploaded roster.
+                    sheet = max(workbook.worksheets, key=lambda ws: ws.max_row * max(1, ws.max_column))
                     iterator = sheet.iter_rows(values_only=True)
                     first = next(iterator, None)
                     headers = [str(h or "").strip().lower() for h in (first or [])]
-                    rows = [dict(zip(headers, ["" if v is None else str(v).strip() for v in row])) for row in iterator]
+                    rows = [dict(zip(headers, ["" if v is None else str(v).strip() for v in row])) for row in iterator if any(v is not None and str(v).strip() for v in row)]
                     for image_obj in getattr(sheet, "_images", []):
                         try:
                             anchor_row = image_obj.anchor._from.row + 1
