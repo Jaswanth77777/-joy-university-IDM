@@ -7,7 +7,7 @@ import base64
 import mimetypes
 
 from datetime import datetime
-from flask import Flask, request, redirect, url_for, render_template_string, session
+from flask import Flask, request, redirect, url_for, render_template_string, session, jsonify
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 60 * 1024 * 1024
@@ -156,11 +156,23 @@ NAV = """
 DASH = NAV + """
 <main class="page">
 <section class="hero"><h1>Student &amp; Faculty ID Studio</h1><p>Manage separate student and teacher profiles, then create polished square 3D ID cards with quick colour themes.</p>
-<div class="stats"><div class="stat"><b>{{total}}</b>Total Students</div><div class="stat"><b>{{teachers_total}}</b>Faculty Members</div><div class="stat"><b>{{departments}}</b>Departments</div><div class="stat"><b>{{photos}}</b>Photos Added</div></div><div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:18px"><a class="btn" style="background:#fff;color:#0754bd" href="{{url_for('teachers')}}">Manage Faculty</a><a class="btn" style="background:#fff;color:#0754bd" href="{{url_for('add_teacher')}}">+ Add Faculty ID</a></div></section>
-<section class="panel"><div class="panelhead"><div><h2 style="margin:0">Student Profiles</h2><div style="font-size:12px;color:#71839a;margin-top:4px">Logged in as {{session_user}}</div></div><div class="actions"><a class="btn" href="{{url_for('download_csv_template')}}">CSV Template</a><a class="btn primary" href="{{url_for('bulk_import')}}">Bulk Import 100 IDs</a></div><form class="search"><input name="q" value="{{q}}" placeholder="Search name, PRN, department, course..."><button class="btn primary">Search</button>{% if q %}<a class="btn" href="{{url_for('home')}}">Clear</a>{% endif %}</form></div>
+<div class="stats"><div class="stat"><b id="liveTotalStudents">{{total}}</b>Total Students</div><div class="stat"><b id="liveTotalFaculty">{{teachers_total}}</b>Faculty Members</div><div class="stat"><b id="liveDepartments">{{departments}}</b>Departments</div><div class="stat"><b id="livePhotos">{{photos}}</b>Photos Added</div></div><div style="font-size:11px;color:#e5efff;margin-top:8px">● Live dashboard <span id="liveSyncStatus">Connecting…</span></div><div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:18px"><a class="btn" style="background:#fff;color:#0754bd" href="{{url_for('teachers')}}">Manage Faculty</a><a class="btn" style="background:#fff;color:#0754bd" href="{{url_for('add_teacher')}}">+ Add Faculty ID</a></div></section>
+<section class="panel"><div class="panelhead"><div><h2 style="margin:0">Student Profiles</h2><div style="font-size:12px;color:#71839a;margin-top:4px">Logged in as {{session_user}}</div></div><div class="actions"><a class="btn" href="{{url_for('download_csv_template')}}">CSV Template</a><a class="btn primary" href="{{url_for('bulk_import')}}">Bulk Import 100 IDs</a></div><form class="search" id="studentSearchForm"><input id="liveStudentSearch" name="q" value="{{q}}" placeholder="Live search name, PRN, phone, branch, batch..."><span id="liveSearchCount" style="font-size:12px;color:#71839a;align-self:center;white-space:nowrap"></span><button class="btn primary">Search</button>{% if q %}<a class="btn" href="{{url_for('home')}}">Clear</a>{% endif %}</form></div>
 <div class="tablewrap">{% if students %}<table><thead><tr><th>Student</th><th>PRN</th><th>Department</th><th>Course</th><th>Year</th><th>Actions</th></tr></thead><tbody>
 {% for s in students %}<tr><td><div class="student"><div class="mini">{% if s.photo %}<img src="{{s.photo}}">{% else %}{{s.name[:1].upper()}}{% endif %}</div><b>{{s.name}}</b></div></td><td>{{s.prn}}</td><td>{{s.department or "-"}}</td><td>{{s.course or "-"}}</td><td>{{s.year or "-"}}</td><td><div class="actions"><a class="btn primary" href="{{url_for('card',sid=s.id)}}">ID Card</a><a class="btn" href="{{url_for('edit_student',sid=s.id)}}">Edit</a><a class="btn danger" href="{{url_for('delete_student',sid=s.id)}}" onclick="return confirm('Delete this student?')">Delete</a></div></td></tr>{% endfor %}
-</tbody></table>{% else %}<div class="empty"><h3>No students found</h3><p>Add a student to generate an ID card.</p><a class="btn primary" href="{{url_for('add_student')}}">+ Add Student</a></div>{% endif %}</div></section>
+</tbody></table><div id="liveNoMatches" class="empty" style="display:none"><h3>No matching students</h3><p>Try a different name, PRN, phone, branch or batch.</p></div>{% else %}<div class="empty"><h3>No students found</h3><p>Add a student to generate an ID card.</p><a class="btn primary" href="{{url_for('add_student')}}">+ Add Student</a></div>{% endif %}</div></section>
+<script>
+(function(){
+ const input=document.getElementById("liveStudentSearch"), form=document.getElementById("studentSearchForm");
+ const rows=Array.from(document.querySelectorAll("tbody tr")); const count=document.getElementById("liveSearchCount"); const noMatches=document.getElementById("liveNoMatches");
+ function filterRows(){if(!input)return;const q=input.value.trim().toLowerCase();let shown=0;rows.forEach(row=>{const match=row.innerText.toLowerCase().includes(q);row.style.display=match?"":"none";if(match)shown++});if(count)count.textContent=shown+" shown";if(noMatches)noMatches.style.display=rows.length&&shown===0?"block":"none";}
+ if(input){input.addEventListener("input",filterRows);filterRows();}
+ if(form)form.addEventListener("submit",function(e){e.preventDefault();const q=input?input.value.trim():"";location.href="/"+(q?"?q="+encodeURIComponent(q):"");});
+ const status=document.getElementById("liveSyncStatus");
+ async function refreshStats(){try{const response=await fetch("/api/live-stats",{cache:"no-store",headers:{"Accept":"application/json"}});if(!response.ok)throw new Error("sync unavailable");const data=await response.json();for(const [id,key] of [["liveTotalStudents","students"],["liveTotalFaculty","faculty"],["liveDepartments","departments"],["livePhotos","photos"]]){const el=document.getElementById(id);if(el)el.textContent=data[key];}if(status)status.textContent="• Updated "+new Date().toLocaleTimeString();}catch(e){if(status)status.textContent="• Offline — retrying";}}
+ refreshStats();setInterval(refreshStats,15000);
+})();
+</script>
 </main><div class="footer">JOY UNIVERSITY • Student ID Card Management System</div>
 """
 
@@ -513,6 +525,20 @@ def teacher_card(tid):
 def logout():
     session.clear()
     return redirect(url_for("login"))
+
+@app.route("/api/live-stats")
+@login_required
+def live_stats():
+    con = db()
+    students = con.execute("SELECT COUNT(*) c FROM students").fetchone()["c"]
+    faculty = con.execute("SELECT COUNT(*) c FROM teachers").fetchone()["c"]
+    departments = con.execute("SELECT COUNT(DISTINCT department) c FROM students WHERE department!=''").fetchone()["c"]
+    photos = con.execute("SELECT COUNT(*) c FROM students WHERE photo!=''").fetchone()["c"]
+    latest = con.execute("SELECT MAX(created_at) value FROM students").fetchone()["value"]
+    con.close()
+    response = jsonify({"students": students, "faculty": faculty, "departments": departments, "photos": photos, "last_student_created": latest, "server_time": datetime.now().isoformat(timespec="seconds")})
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    return response
 
 @app.route("/")
 @login_required
