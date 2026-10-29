@@ -10,7 +10,7 @@ from datetime import datetime
 from flask import Flask, request, redirect, url_for, render_template_string, session, jsonify
 
 app = Flask(__name__)
-app.config["MAX_CONTENT_LENGTH"] = 60 * 1024 * 1024
+app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024
 app.secret_key = os.getenv("SECRET_KEY", "joy-university-change-this-secret")
 ADMIN_USER = os.getenv("JOY_ADMIN_USER", "admin")
 ADMIN_PASSWORD = os.getenv("JOY_ADMIN_PASSWORD", "joy123")
@@ -315,7 +315,7 @@ def bulk_import():
                     header_index = 0
                     def clean_header(value):
                         return " ".join(str(value or "").replace("\\ufeff","").strip().lower().replace("_"," ").replace(".","").split())
-                    header_aliases = {"name":"name","full name":"name","student name":"name","student full name":"name","student":"name","prn":"prn","prn no":"prn","prn number":"prn","prn id":"prn","prn/id":"prn","student id":"prn","id number":"prn","phone":"phone","phone number":"phone","mobile":"phone","mobile number":"phone","department":"department","branch":"department","branch/department":"department","department/branch":"department","batch":"batch","batch number":"batch","batch no":"batch","address":"address","full address":"address","year of study":"year","course":"course"}
+                    header_aliases = {"name":"name","full name":"name","student name":"name","student full name":"name","student":"name","prn":"prn","prn no":"prn","prn number":"prn","prn id":"prn","prn/id":"prn","student id":"prn","id number":"prn","register number":"prn","register no":"prn","registration number":"prn","roll number":"roll_number","roll no":"roll_number","college name":"college_name","phone":"phone","phone number":"phone","student phone number":"phone","mobile":"phone","mobile number":"phone","department":"department","branch":"department","branch/department":"department","department/branch":"department","batch":"batch","batch number":"batch","batch no":"batch","address":"address","full address":"address","year of study":"year","academic year":"academic_year","course":"course","course name":"course","date of birth":"dob","dob":"dob","blood group":"blood_group","student email":"email","college email":"email","email":"email","student photo filename":"photo","photo filename":"photo","photo file name":"photo","id card validity":"validity","validity period":"validity"}
                     best_score = 0
                     for idx, candidate in enumerate(all_rows[:20]):
                         tokens = {clean_header(v) for v in candidate if v is not None and str(v).strip()}
@@ -339,7 +339,7 @@ def bulk_import():
                     workbook.close()
                 else:
                     raise ValueError("Upload a .csv or .xlsx file.")
-                aliases = {"full name":"name","student name":"name","student full name":"name","student":"name","prn no":"prn","prn no.":"prn","prn number":"prn","prn number.":"prn","prn id":"prn","prn/id":"prn","prn no./id":"prn","id number":"prn","student id":"prn","branch":"department","branch name":"department","branch/department":"department","department/branch":"department","department name":"department","batch no":"batch","batch number":"batch","batch year":"batch","phone number":"phone","mobile":"phone","mobile no":"phone","mobile number":"phone","contact number":"phone","contact":"phone","full address":"address","permanent address":"address","residential address":"address","address of student":"address","photo filename":"photo","photo file":"photo","photo name":"photo","image":"photo","image filename":"photo","program":"course","degree":"course","academic year":"year","year of study":"year","email address":"email","e-mail":"email","s. no.":"serial","s.no.":"serial","s. no":"serial","s.no":"serial"}
+                aliases = {"full name":"name","student name":"name","student full name":"name","student":"name","register number":"prn","register no":"prn","registration number":"prn","prn no":"prn","prn no.":"prn","prn number":"prn","prn number.":"prn","prn id":"prn","prn/id":"prn","prn no./id":"prn","id number":"prn","student id":"prn","roll number":"roll_number","roll no":"roll_number","college name":"college_name","branch":"department","branch name":"department","branch/department":"department","department/branch":"department","department name":"department","batch no":"batch","batch number":"batch","batch year":"batch","phone number":"phone","student phone number":"phone","mobile":"phone","mobile no":"phone","mobile number":"phone","contact number":"phone","contact":"phone","full address":"address","permanent address":"address","residential address":"address","address of student":"address","photo filename":"photo","student photo filename":"photo","photo file name":"photo","photo file":"photo","photo name":"photo","image":"photo","image filename":"photo","program":"course","course name":"course","degree":"course","academic year":"academic_year","year of study":"year","date of birth":"dob","blood group":"blood_group","student email":"email","college email":"email","email address":"email","e-mail":"email","id card validity":"validity","validity period":"validity","s. no.":"serial","s.no.":"serial","s. no":"serial","s.no":"serial"}
                 normalized_rows=[]
                 for row in rows:
                     normalized={}
@@ -349,8 +349,6 @@ def bulk_import():
                     normalized_rows.append(normalized)
                 if not headers or not any(aliases.get(h,h)=="name" for h in headers) or not any(aliases.get(h,h)=="prn" for h in headers):
                     raise ValueError("Spreadsheet must include a student name column (Name/Full Name) and a unique ID column (PRN/Student ID). Use the Excel Template if needed.")
-                if len(normalized_rows)>100:
-                    raise ValueError("Upload up to 100 students per batch. Split larger files into smaller batches.")
                 photo_map={}
                 ordered_photos=[]
                 photo_zip=request.files.get("photo_zip")
@@ -418,7 +416,7 @@ def bulk_import():
                 error="Import failed. Check the spreadsheet/photo files and try again. "+str(exc)
     if request.method == "POST" and result and result.get("added", 0) > 0:
         session["last_import_report"] = result.get("errors", [])[:50]
-        return redirect(url_for("bulk_cards", ids=",".join(str(n) for n in result.get("ids", []))))
+        return redirect(url_for("bulk_cards"))
     return page(render_template_string(BULK_IMPORT,result=result,error=error),"Bulk Import - JOY UNIVERSITY")
 
 @app.route("/bulk-cards")
@@ -431,7 +429,6 @@ def bulk_cards():
             if n>0 and n not in ids: ids.append(n)
         except ValueError: pass
     if not ids: ids=session.get("last_bulk_ids",[])
-    ids=ids[:100]
     if not ids: return redirect(url_for("bulk_import"))
     con=db()
     marks=",".join("?" for _ in ids)
