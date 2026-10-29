@@ -5,6 +5,8 @@ import sqlite3
 import zipfile
 import base64
 import mimetypes
+import json
+import uuid
 
 from datetime import datetime
 from flask import Flask, request, redirect, url_for, render_template_string, session, jsonify
@@ -61,6 +63,13 @@ def init_db():
             address TEXT DEFAULT '',
             photo TEXT DEFAULT '',
             joined_at TEXT NOT NULL
+        )
+    """)
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS bulk_batches (
+            batch_id TEXT PRIMARY KEY,
+            student_ids TEXT NOT NULL,
+            created_at TEXT NOT NULL
         )
     """)
     con.commit()
@@ -409,20 +418,37 @@ def bulk_import():
                         skipped+=1; errors.append("Row "+str(row_no)+": could not save PRN "+row.get("prn",""))
                 con.commit(); con.close()
                 result={"added":added,"skipped":skipped,"ids":ids,"errors":errors}
-                if ids: session["last_bulk_ids"]=ids
+                if ids:
+                    batch_id = uuid.uuid4().hex
+                    batch_con = db()
+                    batch_con.execute("INSERT INTO bulk_batches(batch_id,student_ids,created_at) VALUES(?,?,?)",(batch_id,json.dumps(ids),datetime.now().isoformat()))
+                    batch_con.commit()
+                    batch_con.close()
+                    session["last_bulk_batch"] = batch_id
+                    session["last_bulk_ids"] = ids
             except (UnicodeDecodeError,csv.Error,ValueError,zipfile.BadZipFile,KeyError) as exc:
                 error="Could not import spreadsheet: "+str(exc)
             except Exception as exc:
                 error="Import failed. Check the spreadsheet/photo files and try again. "+str(exc)
     if request.method == "POST" and result and result.get("added", 0) > 0:
         session["last_import_report"] = result.get("errors", [])[:50]
-        return redirect(url_for("bulk_cards"))
+        return redirect(url_for("bulk_cards", batch=session.get("last_bulk_batch", "")))
     return page(render_template_string(BULK_IMPORT,result=result,error=error),"Bulk Import - JOY UNIVERSITY")
 
 @app.route("/bulk-cards")
 @login_required
 def bulk_cards():
     ids=[]
+    batch_id = request.args.get("batch", "") or session.get("last_bulk_batch", "")
+    if batch_id:
+        batch_con = db()
+        batch_row = batch_con.execute("SELECT student_ids FROM bulk_batches WHERE batch_id=?", (batch_id,)).fetchone()
+        batch_con.close()
+        if batch_row:
+            try:
+                ids = [int(value) for value in json.loads(batch_row["student_ids"]) if int(value) > 0]
+            except (ValueError, TypeError, json.JSONDecodeError):
+                ids = []
     for value in request.args.get("ids","").split(","):
         try:
             n=int(value)
